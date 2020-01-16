@@ -17,7 +17,7 @@ char* remove_line_comment(char *str, size_t size)
 			{
 				//Just fill with spaces
 				int fill = 0;
-				while(*(str + (fill + i)) != '\n')
+				while(*(str + (fill + i)) != '\n' || *(str + (fill + i)) == '\0')
 				{
 					*(copy + (fill + i)) = ' ';
 					fill++;
