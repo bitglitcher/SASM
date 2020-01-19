@@ -39,6 +39,7 @@
 #define iDMABDM          0x08 //DMA Memory -> Device
 #define iDMABMD          0x09
 #define iSPUSH           0x0a //Same as LS Store but with SP as index
+#define iCALL            0x0b //LPR <= PC + 1
 
 //JMP miicroIns
 #define iJMPAB           0x00

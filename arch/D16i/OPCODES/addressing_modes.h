@@ -20,7 +20,7 @@
 #define MOVF_ADDR_MODE(ins, hl_t, hl_s, ft_b, op, rt, s1) ((ins) | (hl_t << 3) | (hl_s << 4) | (ft_b << 5) | (op << 6) | (rt << 10) | (s1 << 13))
 #define JMPFR_ADDR_MODE(ins, ivr, op, ap1, t1, t2) ((ins) | (ivr << 3) | (op << 4) | (ap1 << 7) | (t1 << 10) | (t2 << 13))
 #define LSINS_ADDR_MODE(ins, ls, gs, hl, t1, p1, immv) ((ins) | (ls << 3) | (gs << 4) | (hl << 5) | (t1 << 6) | (p1 << 9) | (immv << 12))
-#define INMI_ADDR_MODE(ins, op, gs, hl, s1, t1) ((ins) | (op << 3) | (gs << 8) | (hl << 9) | (s1 << 13))
+#define INMI_ADDR_MODE(ins, op, gs, hl, s1, t1) ((ins) | (op << 3) | (gs << 8) | (hl << 9) | (s1 << 10) | (t1 << 13))
 
 //Special INMI addressing modes
 #define INMI_ADDR_MODE_IMM(ins, op, immv) ((ins) | (op << 3) | (immv << 8))
