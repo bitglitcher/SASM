@@ -113,7 +113,7 @@ extern int get_not_gpr();
 %token STRING RESERVE ALLOC WORD SINGLE CONTINOUS PLUS
 %token HALT PARENTESIS_OPEN PARENTESIS_CLOSE COLON
 %token IDENTIFIER PROTO DMAR DMA DMAOP POINT LENGHT
-%token PUSH POP
+%token PUSH POP CALL RETURN
 
 %%
 commands: /* empty */
@@ -142,6 +142,10 @@ command:
 	dma
 	|
 	stack
+	|
+	call
+	|
+	return
     ;
 operation:
     OPERATION REG COMMA REG COMMA REG SEMICOLON
@@ -267,26 +271,22 @@ load:
 		increment_ins();
 	}
 	|
-	LOAD REG COMMA REG PLUS NUMBER SEMICOLON
+	LOAD REG COMMA REG_SEG COMMA REG PLUS NUMBER SEMICOLON
 	{
 		//LOAD 16bit
 		if(reg_gs0 == iGPR)
 		{
-			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x00, 0x00,val1, val2, val3) >> 8) & 0xff);
-			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x00, 0x00,val1, val2, val3) & 0xff));
-			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x00, 0x01,val1, val2, val3) >> 8) & 0xff);
-			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x00, 0x01,val1, val2, val3) & 0xff));
+			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x00, reg_seg_0, val1, val2, val3) >> 8) & 0xff);
+			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x00, reg_seg_0, val1, val2, val3) & 0xff));
 		}
 		else if(reg_gs0 == iSPR)
 		{
-			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x01, 0x00,val1, val2, val3) >> 8) & 0xff);
-			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x01, 0x00,val1, val2, val3) & 0xff));
-			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x01, 0x01,val1, val2, val3) >> 8) & 0xff);
-			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x01, 0x01,val1, val2, val3) & 0xff));
+			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x01, reg_seg_0, val1, val2, val3) >> 8) & 0xff);
+			vector_append(&output_bin_buffer, (LSINS_ADDR_MODE(iLSINS, 0x00, 0x01, reg_seg_0, val1, val2, val3) & 0xff));
 		}
 		reset_gs();
+		reset_reg_segments();
 		reset_values();
-		increment_ins();
 		increment_ins();
 	}
 	|
@@ -362,6 +362,7 @@ load:
 			}
 		}
 		reset_gs();
+		reset_values();
 		reset_values();
 	}
 	;
@@ -443,15 +444,20 @@ store:
 mov:
 	MOV REG COMMA REG SEMICOLON
 	{
-		if((reg_gs0 == iGPR))
+		if((reg_gs0 == iGPR) && (reg_gs1 == iGPR))
 		{
 			vector_append(&output_bin_buffer, (MOVF_ADDR_MODE(iMOVF, 0x0, 0x0, 0x1, iMOVGPRGPR, val1, val2) >> 8 ) & 0xff);
 			vector_append(&output_bin_buffer, (MOVF_ADDR_MODE(iMOVF, 0x0, 0x0, 0x1, iMOVGPRGPR, val1, val2) & 0xff));
 		}
-		else if(reg_gs0 == iSPR)
+		else if((reg_gs0 == iGPR) && (reg_gs1 == iSPR))
 		{
-			vector_append(&output_bin_buffer, (MOVF_ADDR_MODE(iMOVF, 0x0, 0x0, 0x1, iMOVGPRGPR, val1, val2) >> 8 ) & 0xff);
-			vector_append(&output_bin_buffer, (MOVF_ADDR_MODE(iMOVF, 0x0, 0x0, 0x1, iMOVGPRGPR, val1, val2) & 0xff));
+			vector_append(&output_bin_buffer, (MOVF_ADDR_MODE(iMOVF, 0x0, 0x0, 0x1, iMOVGPRSPR, val1, val2) >> 8 ) & 0xff);
+			vector_append(&output_bin_buffer, (MOVF_ADDR_MODE(iMOVF, 0x0, 0x0, 0x1, iMOVGPRSPR, val1, val2) & 0xff));
+		}
+		else if((reg_gs0 == iSPR) && (reg_gs1 == iGPR))
+		{
+			vector_append(&output_bin_buffer, (MOVF_ADDR_MODE(iMOVF, 0x0, 0x0, 0x1, iMOVSPRGPR, val1, val2) >> 8 ) & 0xff);
+			vector_append(&output_bin_buffer, (MOVF_ADDR_MODE(iMOVF, 0x0, 0x0, 0x1, iMOVSPRGPR, val1, val2) & 0xff));
 		}
 		reset_values();
 		reset_gs();
@@ -805,22 +811,24 @@ dma:
 stack:
 	PUSH REG COMMA REG_SEG SEMICOLON
 	{
-		if(reg_seg_0 == iGPR)
+		if(reg_gs0 == iGPR)
 		{
 			vector_append(&output_bin_buffer, (INMI_ADDR_MODE(iINMI, iSPUSH, 0x00, reg_seg_0, val1, 0x00) >> 8) & 0xff);
 			vector_append(&output_bin_buffer, (INMI_ADDR_MODE(iINMI, iSPUSH, 0x00, reg_seg_0, val1, 0x00) & 0xff));
-
+			vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iSPss, 0x1) >> 8) & 0xff);
+			vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iSPss, 0x1) & 0xff));
 		}
-		if(reg_seg_0 == iSPR)
+		else if(reg_gs0 == iSPR)
 		{
 			vector_append(&output_bin_buffer, (INMI_ADDR_MODE(iINMI, iSPUSH, 0x01, reg_seg_0, val1, 0x00) >> 8) & 0xff);
 			vector_append(&output_bin_buffer, (INMI_ADDR_MODE(iINMI, iSPUSH, 0x01, reg_seg_0, val1, 0x00) & 0xff));
+			vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iSPss, 0x1) >> 8) & 0xff);
+			vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iSPss, 0x1) & 0xff));
 		}
-		vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iSPss, 0x1) >> 8) & 0xff);
-		vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iSPss, 0x1) & 0xff));
 		reset_reg_segments();
 		reset_values();
 		reset_gs();
+		increment_ins();
 		increment_ins();
 	}
 	|
@@ -830,5 +838,36 @@ stack:
 		vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iSPpp, val1) & 0xff));
 		increment_ins();
 		reset_values();
+	};
+call:
+	CALL IDENTIFIER COMMA REG SEMICOLON
+	{
+		if(t_buffer_find_maching_name(&t_buffer, identifier_name) == 0)
+		{
+			printf("Syntax error: No maching identifier, %s\n", identifier_name);
+			syntax_error(identifier_name);
+		}
+		else
+		{
+			label_addr = t_buffer_locate_tag_addr(&t_buffer, identifier_name);
+			vector_append(&output_bin_buffer, (LI_ADDR_MODE (iLI, 0x00, 0x00, val1, (label_addr & 0xff)) >> 8 ) & 0xff);
+			vector_append(&output_bin_buffer, (LI_ADDR_MODE (iLI, 0x00, 0x00, val1, (label_addr & 0xff)) & 0xff));
+			vector_append(&output_bin_buffer, (LI_ADDR_MODE (iLI, 0x01, 0x00, val1, ((label_addr >> 0x8) & 0xff)) >> 8 ) & 0xff);
+			vector_append(&output_bin_buffer, (LI_ADDR_MODE (iLI, 0x01, 0x00, val1, ((label_addr >> 0x8) & 0xff)) & 0xff));
+			vector_append(&output_bin_buffer, (INMI_ADDR_MODE(iINMI, iCALL, 0x00, 0x00, val1, 0x00) >> 8) & 0xff);
+			vector_append(&output_bin_buffer, (INMI_ADDR_MODE(iINMI, iCALL, 0x00, 0x00, val1, 0x00) & 0xff));
+			increment_ins();
+			increment_ins();
+			increment_ins();
+		}
+		reset_values();
+		reset_gs();
+	};
+return:
+	RETURN SEMICOLON
+	{
+		vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iRETURN, 0x00) >> 8) & 0xff);
+		vector_append(&output_bin_buffer, (INMI_ADDR_MODE_IMM(iINMI, iRETURN, 0x00) & 0xff));
+		increment_ins();
 	};
 %%

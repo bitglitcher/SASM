@@ -221,6 +221,12 @@ int main(int argc, char **argv)
 	memblock = remove_block_comment(memblock, File_Lenght);
 	//printf("%s\n", memblock);
 	//Using strlen is bad practice to tell the size of a buffer
+
+	//Set prescan mode for string and shit
+
+	//grammar prescan parse
+
+	
 	//Only use it when working with strings
     yy_scan_bytes(memblock, File_Lenght);
     yyparse();
